@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { canCompleteAction } from "../lib/flow";
+import { canCompleteAction, canStartAction } from "../lib/flow";
 import type { ActionInstance } from "../types";
 import { AttachmentUploader } from "./AttachmentUploader";
 
 type ActionCardProps = {
   action: ActionInstance;
+  actions: ActionInstance[];
   saving: boolean;
   readOnly: boolean;
   onSaveBasis: (basis: string) => Promise<unknown>;
@@ -22,6 +23,7 @@ function getErrorMessage(reason: unknown): string {
 
 export function ActionCard({
   action,
+  actions,
   saving,
   readOnly,
   onSaveBasis,
@@ -36,7 +38,9 @@ export function ActionCard({
   const [description, setDescription] = useState(action.description);
   const [savingField, setSavingField] = useState(false);
   const [error, setError] = useState("");
-  const gate = canCompleteAction({ ...action, regulationBasis: basis });
+  const gate = canCompleteAction({ ...action, regulationBasis: basis }, actions);
+  const sequenceGate = canStartAction(action, actions);
+  const sequenceBlocked = !sequenceGate.ok;
   const completed = action.status === "completed";
 
   useEffect(() => {
@@ -105,7 +109,7 @@ export function ActionCard({
           value={basis}
           rows={3}
           placeholder="填写制度、文件名称及条款依据"
-          disabled={completed || saving || savingField || readOnly}
+          disabled={completed || saving || savingField || readOnly || sequenceBlocked}
           onChange={(event) => setBasis(event.target.value)}
           onBlur={() => void saveBasis()}
         />
@@ -117,7 +121,7 @@ export function ActionCard({
           value={description}
           rows={2}
           placeholder="填写动作说明"
-          disabled={completed || saving || savingField || readOnly}
+          disabled={completed || saving || savingField || readOnly || sequenceBlocked}
           onChange={(event) => setDescription(event.target.value)}
           onBlur={() => void saveDescription()}
         />
@@ -126,7 +130,7 @@ export function ActionCard({
       <AttachmentUploader
         attachmentKeys={action.attachmentKeys}
         required={action.requireAttachment}
-        disabled={completed || saving || readOnly}
+        disabled={completed || saving || readOnly || sequenceBlocked}
         onUpload={onUpload}
         onRemove={onRemoveAttachment}
         onPreview={onPreview}

@@ -5,10 +5,33 @@ import {
   type NodeInstance,
   type TaskMetadata,
   type TaskStatus,
-  type Template
+  type Template,
+  type WorkflowCatalog,
+  type WorkflowSelectionInstance,
+  type WorkflowStepDef
 } from "../types";
 
 export let ossClient: OSS | null = null;
+const WORKFLOW_CATALOG_KEY = "settings/procurement-workflows.json";
+
+function createDefaultWorkflowCatalog(): WorkflowCatalog {
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    groups: [
+      {
+        schemaVersion: SCHEMA_VERSION,
+        workflowGroupId: "procurement-method",
+        name: "采购方式",
+        workflows: [
+          { schemaVersion: SCHEMA_VERSION, workflowId: "direct-delegation", name: "直接委托", steps: [] },
+          { schemaVersion: SCHEMA_VERSION, workflowId: "inquiry-comparison", name: "询价比价", steps: [] },
+          { schemaVersion: SCHEMA_VERSION, workflowId: "reverse-auction", name: "反向竞价", steps: [] },
+          { schemaVersion: SCHEMA_VERSION, workflowId: "public-tender", name: "公开招标", steps: [] }
+        ]
+      }
+    ]
+  };
+}
 
 export async function initOss(): Promise<OSS> {
   if (ossClient) {
@@ -88,6 +111,95 @@ async function readJson<T>(key: string): Promise<T> {
   } catch (error) {
     throw new Error(`OSS JSON 解析失败：${key}`, { cause: error });
   }
+}
+
+function isWorkflowCatalog(value: unknown): value is WorkflowCatalog {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const catalog = value as Record<string, unknown>;
+  return (
+    typeof catalog.schemaVersion === "number" &&
+    Array.isArray(catalog.groups) &&
+    catalog.groups.every((group: unknown) => {
+      if (typeof group !== "object" || group === null) {
+        return false;
+      }
+      const candidate = group as Record<string, unknown>;
+      return (
+        typeof candidate.schemaVersion === "number" &&
+        typeof candidate.workflowGroupId === "string" &&
+        typeof candidate.name === "string" &&
+        Array.isArray(candidate.workflows) &&
+        candidate.workflows.every((workflow: unknown) => {
+          if (typeof workflow !== "object" || workflow === null) {
+            return false;
+          }
+          const workflowCandidate = workflow as Record<string, unknown>;
+          return (
+            typeof workflowCandidate.schemaVersion === "number" &&
+            typeof workflowCandidate.workflowId === "string" &&
+            typeof workflowCandidate.name === "string" &&
+            Array.isArray(workflowCandidate.steps) &&
+            workflowCandidate.steps.every((step: unknown) => {
+              if (typeof step !== "object" || step === null) {
+                return false;
+              }
+              const stepCandidate = step as Record<string, unknown>;
+              return (
+                typeof stepCandidate.schemaVersion === "number" &&
+                typeof stepCandidate.stepId === "string" &&
+                typeof stepCandidate.name === "string" &&
+                typeof stepCandidate.requireBasis === "boolean" &&
+                typeof stepCandidate.requireAttachment === "boolean" &&
+                typeof stepCandidate.description === "string"
+              );
+            })
+          );
+        })
+      );
+    })
+  );
+}
+
+function isNotFoundError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+  const details = error as Record<string, unknown>;
+  return (
+    details.code === "NoSuchKey" ||
+    details.status === 404 ||
+    details.statusCode === 404
+  );
+}
+
+export async function getWorkflowCatalog(): Promise<WorkflowCatalog> {
+  try {
+    const catalog: unknown = await readJson<unknown>(WORKFLOW_CATALOG_KEY);
+    if (!isWorkflowCatalog(catalog)) {
+      throw new Error(`采购流程配置格式无效：${WORKFLOW_CATALOG_KEY}`);
+    }
+    return catalog;
+  } catch (error) {
+    if (isNotFoundError(error)) {
+      return createDefaultWorkflowCatalog();
+    }
+    throw error;
+  }
+}
+
+export async function saveWorkflowCatalog(catalog: WorkflowCatalog): Promise<void> {
+  if (!isWorkflowCatalog(catalog)) {
+    throw new Error("采购流程配置格式无效，未保存");
+  }
+  const client = await initOss();
+  await client.put(
+    WORKFLOW_CATALOG_KEY,
+    new Blob([JSON.stringify(catalog, null, 2)], {
+      type: "application/json; charset=utf-8"
+    })
+  );
 }
 
 async function mapWithConcurrency<T, R>(
@@ -335,35 +447,115 @@ export async function signAttachmentUrl(key: string, expires = 3600): Promise<st
 export async function createTaskFromTemplate(
   templateId: string,
   title: string,
-  source: string
+  source: string,
+  selectedWorkflowIds: Record<string, string> = {}
 ): Promise<TaskMetadata> {
   const template = await getTemplate(templateId);
   const templateSnapshot = structuredClone(template);
+  const workflowGroupIds = [
+    ...new Set(
+      templateSnapshot.nodes.flatMap((node) =>
+        node.actions
+          .map((action) => action.workflowGroupId)
+          .filter((workflowGroupId): workflowGroupId is string => Boolean(workflowGroupId))
+      )
+    )
+  ];
+  const workflowCatalog = workflowGroupIds.length > 0
+    ? await getWorkflowCatalog()
+    : undefined;
   const taskId = crypto.randomUUID();
   const now = new Date().toISOString();
-  const nodes: NodeInstance[] = templateSnapshot.nodes.map((node) => ({
-    schemaVersion: SCHEMA_VERSION,
-    nodeId: node.nodeId,
-    name: node.name,
-    status: "pending",
-    actions: node.actions.map((action) => ({
+  const nodes: NodeInstance[] = templateSnapshot.nodes.map((node) => {
+    const actions: NodeInstance["actions"] = [];
+    const selections: WorkflowSelectionInstance[] = [];
+
+    for (const action of node.actions) {
+      if (!action.workflowGroupId) {
+        if (action.workflowId) {
+          throw new Error(`动作 ${action.actionId} 配置了流程 ID，但缺少流程分组 ID`);
+        }
+        actions.push({
+          schemaVersion: SCHEMA_VERSION,
+          actionId: action.actionId,
+          name: action.name,
+          requireBasis: action.requireBasis,
+          requireAttachment: action.requireAttachment,
+          regulationBasis: "",
+          description: action.description,
+          attachmentKeys: [],
+          status: "pending"
+        });
+        continue;
+      }
+
+      const selectedWorkflowId =
+        action.workflowId ?? selectedWorkflowIds[action.workflowGroupId];
+      if (!selectedWorkflowId) {
+        throw new Error(`请先为“${node.name}”选择${action.workflowGroupId}流程`);
+      }
+      const workflowGroup = workflowCatalog?.groups.find(
+        (group) => group.workflowGroupId === action.workflowGroupId
+      );
+      const workflow = workflowGroup?.workflows.find(
+        (item) => item.workflowId === selectedWorkflowId
+      );
+      if (!workflow) {
+        throw new Error(`找不到所选流程：${selectedWorkflowId}`);
+      }
+      if (workflow.steps.length === 0 || workflow.steps.some((step) => !step.name.trim())) {
+        throw new Error(`“${workflow.name}”尚未配置完整步骤，请先到流程设置中完成配置`);
+      }
+
+      const sequenceGroupId = `${action.actionId}:${workflow.workflowId}`;
+      const stepActionIds = workflow.steps.map(
+        (step) => `${action.actionId}:${workflow.workflowId}:${step.stepId}`
+      );
+      selections.push({
+        schemaVersion: SCHEMA_VERSION,
+        workflowGroupId: action.workflowGroupId,
+        workflowId: workflow.workflowId,
+        workflowName: workflow.name,
+        stepActionIds
+      });
+      workflow.steps.forEach((step: WorkflowStepDef, index) => {
+        actions.push({
+          schemaVersion: SCHEMA_VERSION,
+          actionId: stepActionIds[index],
+          name: step.name,
+          requireBasis: step.requireBasis,
+          requireAttachment: step.requireAttachment,
+          regulationBasis: "",
+          description: step.description,
+          attachmentKeys: [],
+          status: "pending",
+          sequenceGroupId,
+          sequenceOrder: index,
+          ...(index > 0 ? { blockedByActionId: stepActionIds[index - 1] } : {})
+        });
+      });
+    }
+
+    return {
       schemaVersion: SCHEMA_VERSION,
-      actionId: action.actionId,
-      name: action.name,
-      requireBasis: action.requireBasis,
-      requireAttachment: action.requireAttachment,
-      regulationBasis: "",
-      description: action.description,
-      attachmentKeys: [],
-      status: "pending"
-    }))
-  }));
+      nodeId: node.nodeId,
+      name: node.name,
+      status: "pending",
+      actions,
+      ...(selections.length > 0 ? { workflowSelections: selections } : {})
+    };
+  });
+  const workflowNames = nodes.flatMap((node) =>
+    (node.workflowSelections ?? []).map((selection) => selection.workflowName)
+  );
   const auditEntry: AuditEntry = {
     schemaVersion: SCHEMA_VERSION,
     timestamp: now,
     action: "create_task",
     targetId: taskId,
-    detail: `Created from template ${templateId}`
+    detail:
+      `Created from template ${templateId}` +
+      (workflowNames.length > 0 ? `; workflows: ${workflowNames.join(", ")}` : "")
   };
   const task: TaskMetadata = {
     schemaVersion: SCHEMA_VERSION,

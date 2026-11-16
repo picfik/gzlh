@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { NewTaskDialog } from "../components/NewTaskDialog";
 import { TaskCard } from "../components/TaskCard";
 import {
@@ -120,13 +120,14 @@ export function TaskList() {
   async function handleCreateTask(
     templateId: string,
     title: string,
-    source: string
+    source: string,
+    workflowIds: Record<string, string>
   ): Promise<void> {
     try {
       if (!isOnline || !navigator.onLine) {
         throw new Error("离线状态无法保存");
       }
-      const task = await createTaskFromTemplate(templateId, title, source);
+      const task = await createTaskFromTemplate(templateId, title, source, workflowIds);
       const currentNode = task.currentNodeId
         ? task.nodes.find((node) => node.nodeId === task.currentNodeId)
         : undefined;
@@ -228,14 +229,19 @@ export function TaskList() {
           <h1>任务列表</h1>
           <p className="page-subtitle">跟进办理事项与当前流程节点</p>
         </div>
-        <button
-          className="button button--primary"
-          type="button"
-          disabled={!isOnline || Boolean(deletingTaskId)}
-          onClick={() => setShowNewTaskDialog(true)}
-        >
-          {isOnline ? "+ 新建任务" : "离线状态无法保存"}
-        </button>
+        <div className="page-header__actions">
+          <Link className="button button--secondary" to="/workflow-settings">
+            流程设置
+          </Link>
+          <button
+            className="button button--primary"
+            type="button"
+            disabled={!isOnline || Boolean(deletingTaskId)}
+            onClick={() => setShowNewTaskDialog(true)}
+          >
+            {isOnline ? "+ 新建任务" : "离线状态无法保存"}
+          </button>
+        </div>
       </header>
 
       {!isOnline && (

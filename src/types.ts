@@ -11,6 +11,44 @@ export interface ActionDef {
   requireBasis: boolean;
   requireAttachment: boolean;
   description: string;
+  workflowGroupId?: string;
+  workflowId?: string;
+}
+
+export interface WorkflowStepDef {
+  schemaVersion: number;
+  stepId: string;
+  name: string;
+  requireBasis: boolean;
+  requireAttachment: boolean;
+  description: string;
+}
+
+export interface WorkflowDef {
+  schemaVersion: number;
+  workflowId: string;
+  name: string;
+  steps: WorkflowStepDef[];
+}
+
+export interface WorkflowGroupDef {
+  schemaVersion: number;
+  workflowGroupId: string;
+  name: string;
+  workflows: WorkflowDef[];
+}
+
+export interface WorkflowCatalog {
+  schemaVersion: number;
+  groups: WorkflowGroupDef[];
+}
+
+export interface WorkflowSelectionInstance {
+  schemaVersion: number;
+  workflowGroupId: string;
+  workflowId: string;
+  workflowName: string;
+  stepActionIds: string[];
 }
 
 export interface NodeDef {
@@ -40,6 +78,9 @@ export interface ActionInstance {
   attachmentKeys: string[];
   status: ActionStatus;
   completedAt?: number;
+  sequenceGroupId?: string;
+  sequenceOrder?: number;
+  blockedByActionId?: string;
 }
 
 export interface NodeInstance {
@@ -48,6 +89,7 @@ export interface NodeInstance {
   name: string;
   actions: ActionInstance[];
   status: NodeStatus;
+  workflowSelections?: WorkflowSelectionInstance[];
 }
 
 export interface AuditEntry {

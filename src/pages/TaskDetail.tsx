@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { NodePanel } from "../components/NodePanel";
 import {
   addAttachmentToAction,
+  canStartAction,
   completeAction,
   completeNode,
   removeAttachmentFromAction,
@@ -254,6 +255,17 @@ export function TaskDetail() {
       const currentTask = taskRef.current;
       if (!currentTask || !taskId) {
         throw new Error("任务尚未加载");
+      }
+      const currentNode = currentTask.nodes.find((node) => node.nodeId === nodeId);
+      const currentAction = currentNode?.actions.find(
+        (action) => action.actionId === actionId
+      );
+      if (!currentNode || !currentAction) {
+        throw new Error(`找不到动作：${actionId}`);
+      }
+      const sequenceGate = canStartAction(currentAction, currentNode.actions);
+      if (!sequenceGate.ok) {
+        throw new Error(sequenceGate.reason ?? "请先完成前序流程");
       }
       const key = await uploadAttachment(taskId, actionId, file);
       const nextTask = addAttachmentToAction(currentTask, nodeId, actionId, key);

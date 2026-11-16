@@ -16,6 +16,12 @@ ossutil cp .\template.json oss://<bucket-name>/templates/purchase-compliance.jso
 
 上传后可在 OSS 控制台确认该对象存在；应用的 `listTemplates()` 会从 `templates/` 前缀读取 `.json` 对象。
 
+## 配置可复用采购流程
+
+在应用任务列表点击“流程设置”，即可新增、编辑、排序或删除采购方式步骤，并为每一步设置制度依据和附件门禁。配置保存在 Bucket 根目录的 `settings/procurement-workflows.json`。OSS 凭据需要允许读取和写入该对象。
+
+模板节点中的动作可通过 `workflowGroupId: "procurement-method"` 引用采购方式组。创建任务时选择一种已设置步骤的方式，所选步骤会复制到任务快照；后续修改流程设置不会影响已创建任务。若模板动作同时指定具体的 `workflowId`（例如 `direct-delegation`），该方式会自动套用，无需创建任务时再选择。每一步需按顺序完成，撤销前序步骤前必须先撤销后续步骤。
+
 ## 附件复用与删除
 
 上传附件时，应用会在 `tasks/` 对象中查找文件名及文件大小都相同的附件；命中时复用已有 OSS Key，只在当前任务 JSON 中新增引用。移除附件时先保存当前任务的引用变更，再扫描所有 `tasks/*/metadata.json`：仍有任意引用就保留 OSS 文件；确认零引用后才删除对象。因此 OSS 凭据需要能够列出 `tasks/`、读取任务元数据，并在无引用时删除附件对象。

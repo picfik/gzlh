@@ -29,6 +29,22 @@ function findAction(
   return action;
 }
 
+export function canStartAction(
+  action: ActionInstance,
+  actions: ActionInstance[]
+): { ok: boolean; reason?: string } {
+  if (!action.blockedByActionId) {
+    return { ok: true };
+  }
+  const previousAction = actions.find(
+    (item) => item.actionId === action.blockedByActionId
+  );
+  if (previousAction?.status !== "completed") {
+    return { ok: false, reason: "请先完成前序流程" };
+  }
+  return { ok: true };
+}
+
 /** 创建带版本号和时间戳的审计记录。 */
 function createAuditEntry(
   action: string,
@@ -53,8 +69,13 @@ function copyTask(task: TaskMetadata): TaskMetadata {
  * 检查动作是否满足制度依据和附件门禁。
  */
 export function canCompleteAction(
-  action: ActionInstance
+  action: ActionInstance,
+  actions: ActionInstance[] = []
 ): { ok: boolean; reason?: string } {
+  const sequenceGate = canStartAction(action, actions);
+  if (!sequenceGate.ok) {
+    return sequenceGate;
+  }
   if (action.requireBasis && action.regulationBasis.trim().length === 0) {
     return { ok: false, reason: "请先填写制度依据" };
   }
@@ -72,8 +93,9 @@ export function completeAction(
   nodeId: string,
   actionId: string
 ): TaskMetadata {
+  const node = findNode(task, nodeId);
   const action = findAction(task, nodeId, actionId);
-  const gate = canCompleteAction(action);
+  const gate = canCompleteAction(action, node.actions);
   if (!gate.ok) {
     throw new Error(gate.reason ?? "动作尚未满足完成条件");
   }
@@ -94,7 +116,24 @@ export function undoAction(
   nodeId: string,
   actionId: string
 ): TaskMetadata {
-  findAction(task, nodeId, actionId);
+  const node = findNode(task, nodeId);
+  const action = findAction(task, nodeId, actionId);
+  const sequenceGroupId = action.sequenceGroupId;
+  const sequenceOrder = action.sequenceOrder;
+  if (sequenceGroupId !== undefined && sequenceOrder !== undefined) {
+    const completedLaterSteps = node.actions
+      .filter(
+        (item) =>
+          item.sequenceGroupId === sequenceGroupId &&
+          item.sequenceOrder !== undefined &&
+          item.sequenceOrder > sequenceOrder &&
+          item.status === "completed"
+      )
+      .map((item) => item.name);
+    if (completedLaterSteps.length > 0) {
+      throw new Error(`请先撤销后续流程：${completedLaterSteps.join("、")}`);
+    }
+  }
   const nextTask = copyTask(task);
   const nextAction = findAction(nextTask, nodeId, actionId);
   nextAction.status = "pending";
@@ -162,7 +201,9 @@ export function updateActionBasis(
   actionId: string,
   basis: string
 ): TaskMetadata {
-  findAction(task, nodeId, actionId);
+  const node = findNode(task, nodeId);
+  const action = findAction(task, nodeId, actionId);
+  assertActionCanStart(action, node.actions);
   const nextTask = copyTask(task);
   findAction(nextTask, nodeId, actionId).regulationBasis = basis;
   nextTask.auditLog.push(createAuditEntry("update_action_basis", actionId, basis));
@@ -178,7 +219,9 @@ export function updateActionDescription(
   actionId: string,
   desc: string
 ): TaskMetadata {
-  findAction(task, nodeId, actionId);
+  const node = findNode(task, nodeId);
+  const action = findAction(task, nodeId, actionId);
+  assertActionCanStart(action, node.actions);
   const nextTask = copyTask(task);
   findAction(nextTask, nodeId, actionId).description = desc;
   nextTask.auditLog.push(createAuditEntry("update_action_description", actionId, desc));
@@ -194,11 +237,13 @@ export function addAttachmentToAction(
   actionId: string,
   key: string
 ): TaskMetadata {
-  findAction(task, nodeId, actionId);
+  const node = findNode(task, nodeId);
+  const action = findAction(task, nodeId, actionId);
+  assertActionCanStart(action, node.actions);
   const nextTask = copyTask(task);
-  const action = findAction(nextTask, nodeId, actionId);
-  if (!action.attachmentKeys.includes(key)) {
-    action.attachmentKeys.push(key);
+  const nextAction = findAction(nextTask, nodeId, actionId);
+  if (!nextAction.attachmentKeys.includes(key)) {
+    nextAction.attachmentKeys.push(key);
   }
   nextTask.auditLog.push(createAuditEntry("upload_attachment", actionId, key));
   return nextTask;
@@ -213,7 +258,9 @@ export function removeAttachmentFromAction(
   actionId: string,
   key: string
 ): TaskMetadata {
+  const node = findNode(task, nodeId);
   const action = findAction(task, nodeId, actionId);
+  assertActionCanStart(action, node.actions);
   const attachmentIndex = action.attachmentKeys.indexOf(key);
   if (attachmentIndex === -1) {
     throw new Error("该动作未引用此附件");
@@ -224,4 +271,14 @@ export function removeAttachmentFromAction(
   nextAction.attachmentKeys.splice(attachmentIndex, 1);
   nextTask.auditLog.push(createAuditEntry("remove_attachment", actionId, key));
   return nextTask;
+}
+
+function assertActionCanStart(
+  action: ActionInstance,
+  actions: ActionInstance[]
+): void {
+  const gate = canStartAction(action, actions);
+  if (!gate.ok) {
+    throw new Error(gate.reason ?? "请先完成前序流程");
+  }
 }

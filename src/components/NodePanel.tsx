@@ -58,11 +58,18 @@ export function NodePanel({
 
       {expanded && (
         <div className="node-panel__body">
+          {node.workflowSelections?.map((selection) => (
+            <p className="workflow-selection" key={selection.workflowId}>
+              本任务采购方式：<strong>{selection.workflowName}</strong>
+              （共 {selection.stepActionIds.length} 步，须按顺序完成）
+            </p>
+          ))}
           <div className="action-list">
             {node.actions.map((action: ActionInstance) => (
               <ActionCard
                 key={action.actionId}
                 action={action}
+                actions={node.actions}
                 saving={saving}
                 readOnly={readOnly}
                 onSaveBasis={(basis) => onSaveBasis(action.actionId, basis)}

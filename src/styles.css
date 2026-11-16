@@ -33,6 +33,13 @@ select {
   margin-bottom: 28px;
 }
 
+.page-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: none;
+}
+
 .page-header h1,
 .detail-header h1 {
   margin: 7px 0;
@@ -298,6 +305,17 @@ select {
   font-weight: 600;
 }
 
+.field-hint {
+  color: #74817a;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.field-hint a {
+  color: #315d4d;
+}
+
 .field input,
 .field select,
 .field textarea {
@@ -475,6 +493,19 @@ select {
 .node-panel__body {
   padding: 0 18px 18px;
   border-top: 1px solid #edf1ed;
+}
+
+.workflow-selection {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  color: #52615b;
+  background: #f2f6f2;
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+.workflow-selection strong {
+  color: #173b35;
 }
 
 .action-list {
@@ -718,6 +749,129 @@ select {
   color: #94703a;
 }
 
+.workflow-settings .back-link {
+  margin-bottom: 22px;
+}
+
+.workflow-settings .page-header {
+  align-items: flex-start;
+}
+
+.workflow-settings .page-subtitle {
+  max-width: 620px;
+  line-height: 1.6;
+}
+
+.workflow-message {
+  margin: 0 0 18px;
+}
+
+.workflow-group {
+  margin-bottom: 24px;
+  padding: 20px;
+  background: #fff;
+  border: 1px solid #e1e8e2;
+  border-radius: 10px;
+}
+
+.workflow-group__heading,
+.workflow-method__heading,
+.workflow-step__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.workflow-group__heading {
+  margin-bottom: 16px;
+}
+
+.workflow-group__heading h2 {
+  margin: 0 0 5px;
+  font-size: 17px;
+}
+
+.workflow-group__heading p,
+.workflow-empty {
+  margin: 0;
+  color: #74817a;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.workflow-method-list {
+  display: grid;
+  gap: 14px;
+}
+
+.workflow-method {
+  padding: 16px;
+  background: #f9fbf9;
+  border: 1px solid #e6ece7;
+  border-radius: 8px;
+}
+
+.workflow-method__heading {
+  align-items: flex-end;
+  margin-bottom: 12px;
+}
+
+.workflow-method__heading .field {
+  width: min(420px, 100%);
+}
+
+.workflow-step-list {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  margin: 0 0 12px;
+  list-style: none;
+}
+
+.workflow-step {
+  display: grid;
+  gap: 12px;
+  padding: 13px;
+  background: #fff;
+  border: 1px solid #e6ece7;
+  border-radius: 7px;
+}
+
+.workflow-step__heading {
+  color: #52615b;
+  font-size: 12px;
+}
+
+.workflow-step__heading > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.workflow-step__requirements {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  color: #52615b;
+  font-size: 12px;
+}
+
+.workflow-step__requirements label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.workflow-step__requirements input {
+  accent-color: #315d4d;
+}
+
+.workflow-empty {
+  margin: 8px 0 12px;
+  color: #a45b40;
+}
+
 @media (max-width: 560px) {
   .page-shell {
     width: calc(100% - 28px);
@@ -728,6 +882,11 @@ select {
     align-items: flex-start;
   }
 
+  .page-header__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .page-header h1 {
     font-size: 25px;
   }
@@ -735,6 +894,21 @@ select {
   .page-header .button {
     padding: 9px 10px;
     white-space: nowrap;
+  }
+
+  .workflow-settings .page-header {
+    flex-direction: column;
+  }
+
+  .workflow-group {
+    padding: 14px;
+  }
+
+  .workflow-group__heading,
+  .workflow-method__heading,
+  .workflow-step__heading {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .detail-header {
