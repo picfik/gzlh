@@ -56,23 +56,23 @@
       "schemaVersion": 1,
       "nodeId": "node-03-execution",
       "name": "执行",
-      "description": "按已确认的方案开展采购执行并留存过程材料。",
+      "description": "按已确认的采购方案和适用制度选择实际采购方式并组织执行；不同事项采用的方式不同，不要求完成所有方式。",
       "actions": [
         {
           "schemaVersion": 1,
-          "actionId": "action-inquiry-comparison",
-          "name": "询价比价",
-          "requireBasis": false,
+          "actionId": "action-execute-procurement-method",
+          "name": "按批准方式组织采购",
+          "requireBasis": true,
           "requireAttachment": true,
-          "description": "记录询价对象、报价信息及比价结果，并上传相关材料。"
+          "description": "依据批准方案和适用制度，选择并记录本事项实际采用的采购方式及适用依据，再按该方式组织实施。方式可包括询价比价、直接委托、反向竞价、公开招标等；只办理本事项适用的方式，不要求同时执行全部方式。上传与所选方式相符的审批依据和实施材料。"
         },
         {
           "schemaVersion": 1,
           "actionId": "action-process-records",
-          "name": "过程记录",
+          "name": "整理采购过程记录",
           "requireBasis": false,
           "requireAttachment": true,
-          "description": "整理采购执行过程记录并上传佐证文件。"
+          "description": "按实际采用的采购方式整理过程记录并上传佐证，例如询价报价及比价记录、直接委托说明及审批、反向竞价记录、招标文件及评审记录等；仅上传适用于本事项的材料。"
         }
       ]
     },
