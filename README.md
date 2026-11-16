@@ -25,4 +25,4 @@ npm run build
 
 示例采购流程模板见 [`template.json`](./template.json)，本地 OSS 调试、模板上传和 CORS 配置见 [`docs/OSS_DEBUGGING.md`](./docs/OSS_DEBUGGING.md)。
 
-任务列表中的“流程设置”可维护可复用的采购方式及步骤。模板动作通过 `workflowGroupId` 引用流程组；新建任务时选择一种已配置方式，步骤会复制进任务快照并按顺序门禁。若模板动作同时指定 `workflowId`，则会自动套用该方式，无需在创建任务时选择。更新采购模板后，需将仓库根目录的 `template.json` 上传覆盖 OSS 中的 `templates/purchase-compliance.json`。
+任务列表中的“流程设置”可维护可复用的采购方式及步骤。模板动作通过 `workflowGroupId` 引用流程组；进入任务的执行节点后，在节点内选择一种已配置方式，步骤会直接显示并复制进任务快照，且按顺序门禁。更新采购模板后，需将仓库根目录的 `template.json` 上传覆盖 OSS 中的 `templates/purchase-compliance.json`。

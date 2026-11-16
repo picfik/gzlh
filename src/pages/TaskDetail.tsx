@@ -7,6 +7,7 @@ import {
   completeAction,
   completeNode,
   removeAttachmentFromAction,
+  selectWorkflowForNode,
   undoAction,
   updateActionBasis,
   updateActionDescription
@@ -15,11 +16,12 @@ import {
   loadTask,
   saveTask,
   deleteAttachmentIfUnreferenced,
+  getWorkflowCatalog,
   signAttachmentUrl,
   uploadAttachment
 } from "../lib/oss";
 import { exportTaskRecord } from "../lib/export";
-import type { TaskMetadata } from "../types";
+import type { TaskMetadata, WorkflowCatalog } from "../types";
 
 function getErrorMessage(reason: unknown): string {
   return reason instanceof Error ? reason.message : String(reason);
@@ -44,6 +46,9 @@ export function TaskDetail() {
   const [isSnapshot, setIsSnapshot] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [workflowCatalog, setWorkflowCatalog] = useState<WorkflowCatalog | null>(null);
+  const [workflowCatalogLoading, setWorkflowCatalogLoading] = useState(false);
+  const [workflowError, setWorkflowError] = useState("");
   const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const taskRef = useRef<TaskMetadata | null>(null);
@@ -115,6 +120,8 @@ export function TaskDetail() {
       taskRef.current = null;
       setTask(null);
       setIsSnapshot(false);
+      setWorkflowCatalog(null);
+      setWorkflowError("");
     }
     setError("");
 
@@ -161,6 +168,34 @@ export function TaskDetail() {
             window.localStorage.setItem(cacheKey(loadedTask.taskId), JSON.stringify(loadedTask));
           } catch (reason) {
             setError(`任务已加载，但本地快照缓存失败：${getErrorMessage(reason)}`);
+          }
+          const needsWorkflowCatalog = loadedTask.nodes.some((node) =>
+            (node.workflowSlots ?? []).some(
+              (slot) =>
+                !node.workflowSelections?.some(
+                  (selection) => selection.workflowGroupId === slot.workflowGroupId
+                )
+            )
+          );
+          if (needsWorkflowCatalog) {
+            setWorkflowCatalogLoading(true);
+            setWorkflowError("");
+            void getWorkflowCatalog()
+              .then((catalog) => {
+                if (active) {
+                  setWorkflowCatalog(catalog);
+                }
+              })
+              .catch((reason: unknown) => {
+                if (active) {
+                  setWorkflowError(`加载采购方式失败：${getErrorMessage(reason)}`);
+                }
+              })
+              .finally(() => {
+                if (active) {
+                  setWorkflowCatalogLoading(false);
+                }
+              });
           }
         }
       } catch (reason) {
@@ -328,6 +363,29 @@ export function TaskDetail() {
     return signAttachmentUrl(key);
   }
 
+  async function handleSelectWorkflow(
+    nodeId: string,
+    workflowGroupId: string,
+    workflowId: string
+  ): Promise<void> {
+    try {
+      const catalog = await getWorkflowCatalog();
+      const workflow = catalog.groups
+        .find((group) => group.workflowGroupId === workflowGroupId)
+        ?.workflows.find((item) => item.workflowId === workflowId);
+      if (!workflow) {
+        throw new Error(`找不到所选采购方式：${workflowId}`);
+      }
+      setWorkflowCatalog(catalog);
+      const savedTask = await persistUpdate((current) =>
+        selectWorkflowForNode(current, nodeId, workflowGroupId, workflow)
+      );
+      taskRef.current = savedTask;
+    } catch (reason) {
+      window.alert(`选择采购方式失败：${getErrorMessage(reason)}`);
+    }
+  }
+
   async function handleExport(): Promise<void> {
     if (!task || saving || exporting) {
       return;
@@ -438,6 +496,9 @@ export function TaskDetail() {
             expanded={expandedNodeId === node.nodeId}
             saving={saving}
             readOnly={readOnly}
+            workflowCatalog={workflowCatalog}
+            workflowCatalogLoading={workflowCatalogLoading}
+            workflowError={workflowError}
             onToggle={() =>
               setExpandedNodeId((current) => current === node.nodeId ? null : node.nodeId)
             }
@@ -456,6 +517,9 @@ export function TaskDetail() {
             onPreview={handlePreview}
             onCompleteAction={(actionId) => handleCompleteAction(node.nodeId, actionId)}
             onUndoAction={(actionId) => handleUndoAction(node.nodeId, actionId)}
+            onSelectWorkflow={(workflowGroupId, workflowId) =>
+              handleSelectWorkflow(node.nodeId, workflowGroupId, workflowId)
+            }
             onCompleteNode={() => void handleCompleteNode(node.nodeId)}
           />
         ))}

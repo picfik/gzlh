@@ -20,7 +20,7 @@ ossutil cp .\template.json oss://<bucket-name>/templates/purchase-compliance.jso
 
 在应用任务列表点击“流程设置”，即可新增、编辑、排序或删除采购方式步骤，并为每一步设置制度依据和附件门禁。配置保存在 Bucket 根目录的 `settings/procurement-workflows.json`。OSS 凭据需要允许读取和写入该对象。
 
-模板节点中的动作可通过 `workflowGroupId: "procurement-method"` 引用采购方式组。创建任务时选择一种已设置步骤的方式，所选步骤会复制到任务快照；后续修改流程设置不会影响已创建任务。若模板动作同时指定具体的 `workflowId`（例如 `direct-delegation`），该方式会自动套用，无需创建任务时再选择。每一步需按顺序完成，撤销前序步骤前必须先撤销后续步骤。
+模板节点中的动作可通过 `workflowGroupId: "procurement-method"` 引用采购方式组。进入任务的执行节点后，在节点内选择一种已设置步骤的方式；所选步骤会立即显示并复制到任务快照，后续修改流程设置不会影响已创建任务。每一步需按顺序完成，前序步骤未完成时后续步骤不可编辑或上传；撤销前序步骤前必须先撤销后续步骤。
 
 ## 附件复用与删除
 

@@ -12,7 +12,6 @@ export interface ActionDef {
   requireAttachment: boolean;
   description: string;
   workflowGroupId?: string;
-  workflowId?: string;
 }
 
 export interface WorkflowStepDef {
@@ -51,6 +50,15 @@ export interface WorkflowSelectionInstance {
   stepActionIds: string[];
 }
 
+export interface WorkflowSlotInstance {
+  schemaVersion: number;
+  workflowGroupId: string;
+  placeholderActionId: string;
+  name: string;
+  description: string;
+  templateOrder: number;
+}
+
 export interface NodeDef {
   schemaVersion: number;
   nodeId: string;
@@ -81,6 +89,7 @@ export interface ActionInstance {
   sequenceGroupId?: string;
   sequenceOrder?: number;
   blockedByActionId?: string;
+  templateOrder?: number;
 }
 
 export interface NodeInstance {
@@ -89,6 +98,7 @@ export interface NodeInstance {
   name: string;
   actions: ActionInstance[];
   status: NodeStatus;
+  workflowSlots?: WorkflowSlotInstance[];
   workflowSelections?: WorkflowSelectionInstance[];
 }
 

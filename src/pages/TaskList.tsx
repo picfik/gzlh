@@ -120,14 +120,13 @@ export function TaskList() {
   async function handleCreateTask(
     templateId: string,
     title: string,
-    source: string,
-    workflowIds: Record<string, string>
+    source: string
   ): Promise<void> {
     try {
       if (!isOnline || !navigator.onLine) {
         throw new Error("离线状态无法保存");
       }
-      const task = await createTaskFromTemplate(templateId, title, source, workflowIds);
+      const task = await createTaskFromTemplate(templateId, title, source);
       const currentNode = task.currentNodeId
         ? task.nodes.find((node) => node.nodeId === task.currentNodeId)
         : undefined;

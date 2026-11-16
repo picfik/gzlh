@@ -3,7 +3,9 @@ import {
   type ActionInstance,
   type AuditEntry,
   type NodeInstance,
-  type TaskMetadata
+  type TaskMetadata,
+  type WorkflowDef,
+  type WorkflowSelectionInstance
 } from "../types";
 
 /** 按 ID 查找节点，不存在时抛出中文错误。 */
@@ -151,7 +153,86 @@ export function canCompleteNode(
   const pendingActions = node.actions
     .filter((action) => action.status !== "completed")
     .map((action) => action.name);
+  const selectedGroups = new Set(
+    (node.workflowSelections ?? []).map((selection) => selection.workflowGroupId)
+  );
+  const unselectedWorkflowNames = (node.workflowSlots ?? [])
+    .filter((slot) => !selectedGroups.has(slot.workflowGroupId))
+    .map((slot) => slot.name);
+  pendingActions.push(...unselectedWorkflowNames);
   return { ok: pendingActions.length === 0, pendingActions };
+}
+
+export function selectWorkflowForNode(
+  task: TaskMetadata,
+  nodeId: string,
+  workflowGroupId: string,
+  workflow: WorkflowDef
+): TaskMetadata {
+  const node = findNode(task, nodeId);
+  const slot = node.workflowSlots?.find(
+    (item) => item.workflowGroupId === workflowGroupId
+  );
+  if (!slot) {
+    throw new Error(`节点中不存在流程选择项：${workflowGroupId}`);
+  }
+  if (node.workflowSelections?.some(
+    (selection) => selection.workflowGroupId === workflowGroupId
+  )) {
+    throw new Error("该节点已选择采购方式流程");
+  }
+  if (workflow.steps.length === 0 || workflow.steps.some((step) => !step.name.trim())) {
+    throw new Error(`“${workflow.name}”尚未配置完整步骤`);
+  }
+
+  const nextTask = copyTask(task);
+  const nextNode = findNode(nextTask, nodeId);
+  const sequenceGroupId = `${slot.placeholderActionId}:${workflow.workflowId}`;
+  const stepActionIds = workflow.steps.map(
+    (step) => `${slot.placeholderActionId}:${workflow.workflowId}:${step.stepId}`
+  );
+  const generatedActions = workflow.steps.map((step, index): ActionInstance => ({
+    schemaVersion: SCHEMA_VERSION,
+    actionId: stepActionIds[index],
+    name: step.name,
+    requireBasis: step.requireBasis,
+    requireAttachment: step.requireAttachment,
+    regulationBasis: "",
+    description: step.description,
+    attachmentKeys: [],
+    status: "pending",
+    sequenceGroupId,
+    sequenceOrder: index,
+    templateOrder: slot.templateOrder,
+    ...(index > 0 ? { blockedByActionId: stepActionIds[index - 1] } : {})
+  }));
+  const insertIndex = nextNode.actions.findIndex(
+    (action) =>
+      action.templateOrder !== undefined &&
+      action.templateOrder > slot.templateOrder
+  );
+  if (insertIndex === -1) {
+    nextNode.actions.push(...generatedActions);
+  } else {
+    nextNode.actions.splice(insertIndex, 0, ...generatedActions);
+  }
+
+  const selection: WorkflowSelectionInstance = {
+    schemaVersion: SCHEMA_VERSION,
+    workflowGroupId,
+    workflowId: workflow.workflowId,
+    workflowName: workflow.name,
+    stepActionIds
+  };
+  nextNode.workflowSelections = [...(nextNode.workflowSelections ?? []), selection];
+  nextTask.auditLog.push(
+    createAuditEntry(
+      "select_workflow",
+      `${nodeId}:${workflowGroupId}`,
+      `${workflow.workflowId}: ${workflow.name}`
+    )
+  );
+  return nextTask;
 }
 
 /**

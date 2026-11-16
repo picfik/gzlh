@@ -204,7 +204,7 @@ export function WorkflowSettings() {
             <div className="workflow-group__heading">
               <div>
                 <h2>{group.name}</h2>
-                <p>新任务选择一种采购方式后，将按下列顺序生成任务步骤。</p>
+                <p>进入任务执行节点选择一种采购方式后，将按下列顺序生成任务步骤。</p>
               </div>
               <button
                 className="button button--secondary"

@@ -7,8 +7,7 @@ import {
   type TaskStatus,
   type Template,
   type WorkflowCatalog,
-  type WorkflowSelectionInstance,
-  type WorkflowStepDef
+  type WorkflowSlotInstance
 } from "../types";
 
 export let ossClient: OSS | null = null;
@@ -447,34 +446,27 @@ export async function signAttachmentUrl(key: string, expires = 3600): Promise<st
 export async function createTaskFromTemplate(
   templateId: string,
   title: string,
-  source: string,
-  selectedWorkflowIds: Record<string, string> = {}
+  source: string
 ): Promise<TaskMetadata> {
   const template = await getTemplate(templateId);
   const templateSnapshot = structuredClone(template);
-  const workflowGroupIds = [
-    ...new Set(
-      templateSnapshot.nodes.flatMap((node) =>
-        node.actions
-          .map((action) => action.workflowGroupId)
-          .filter((workflowGroupId): workflowGroupId is string => Boolean(workflowGroupId))
-      )
-    )
-  ];
-  const workflowCatalog = workflowGroupIds.length > 0
-    ? await getWorkflowCatalog()
-    : undefined;
   const taskId = crypto.randomUUID();
   const now = new Date().toISOString();
   const nodes: NodeInstance[] = templateSnapshot.nodes.map((node) => {
     const actions: NodeInstance["actions"] = [];
-    const selections: WorkflowSelectionInstance[] = [];
+    const workflowSlots: WorkflowSlotInstance[] = [];
 
-    for (const action of node.actions) {
-      if (!action.workflowGroupId) {
-        if (action.workflowId) {
-          throw new Error(`动作 ${action.actionId} 配置了流程 ID，但缺少流程分组 ID`);
-        }
+    node.actions.forEach((action, templateOrder) => {
+      if (action.workflowGroupId) {
+        workflowSlots.push({
+          schemaVersion: SCHEMA_VERSION,
+          workflowGroupId: action.workflowGroupId,
+          placeholderActionId: action.actionId,
+          name: action.name,
+          description: action.description,
+          templateOrder
+        });
+      } else {
         actions.push({
           schemaVersion: SCHEMA_VERSION,
           actionId: action.actionId,
@@ -484,57 +476,11 @@ export async function createTaskFromTemplate(
           regulationBasis: "",
           description: action.description,
           attachmentKeys: [],
-          status: "pending"
-        });
-        continue;
-      }
-
-      const selectedWorkflowId =
-        action.workflowId ?? selectedWorkflowIds[action.workflowGroupId];
-      if (!selectedWorkflowId) {
-        throw new Error(`请先为“${node.name}”选择${action.workflowGroupId}流程`);
-      }
-      const workflowGroup = workflowCatalog?.groups.find(
-        (group) => group.workflowGroupId === action.workflowGroupId
-      );
-      const workflow = workflowGroup?.workflows.find(
-        (item) => item.workflowId === selectedWorkflowId
-      );
-      if (!workflow) {
-        throw new Error(`找不到所选流程：${selectedWorkflowId}`);
-      }
-      if (workflow.steps.length === 0 || workflow.steps.some((step) => !step.name.trim())) {
-        throw new Error(`“${workflow.name}”尚未配置完整步骤，请先到流程设置中完成配置`);
-      }
-
-      const sequenceGroupId = `${action.actionId}:${workflow.workflowId}`;
-      const stepActionIds = workflow.steps.map(
-        (step) => `${action.actionId}:${workflow.workflowId}:${step.stepId}`
-      );
-      selections.push({
-        schemaVersion: SCHEMA_VERSION,
-        workflowGroupId: action.workflowGroupId,
-        workflowId: workflow.workflowId,
-        workflowName: workflow.name,
-        stepActionIds
-      });
-      workflow.steps.forEach((step: WorkflowStepDef, index) => {
-        actions.push({
-          schemaVersion: SCHEMA_VERSION,
-          actionId: stepActionIds[index],
-          name: step.name,
-          requireBasis: step.requireBasis,
-          requireAttachment: step.requireAttachment,
-          regulationBasis: "",
-          description: step.description,
-          attachmentKeys: [],
           status: "pending",
-          sequenceGroupId,
-          sequenceOrder: index,
-          ...(index > 0 ? { blockedByActionId: stepActionIds[index - 1] } : {})
+          templateOrder
         });
-      });
-    }
+      }
+    });
 
     return {
       schemaVersion: SCHEMA_VERSION,
@@ -542,20 +488,15 @@ export async function createTaskFromTemplate(
       name: node.name,
       status: "pending",
       actions,
-      ...(selections.length > 0 ? { workflowSelections: selections } : {})
+      ...(workflowSlots.length > 0 ? { workflowSlots } : {})
     };
   });
-  const workflowNames = nodes.flatMap((node) =>
-    (node.workflowSelections ?? []).map((selection) => selection.workflowName)
-  );
   const auditEntry: AuditEntry = {
     schemaVersion: SCHEMA_VERSION,
     timestamp: now,
     action: "create_task",
     targetId: taskId,
-    detail:
-      `Created from template ${templateId}` +
-      (workflowNames.length > 0 ? `; workflows: ${workflowNames.join(", ")}` : "")
+    detail: `Created from template ${templateId}`
   };
   const task: TaskMetadata = {
     schemaVersion: SCHEMA_VERSION,
