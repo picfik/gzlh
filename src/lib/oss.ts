@@ -191,8 +191,9 @@ export async function saveTask(task: TaskMetadata): Promise<TaskMetadata> {
   const client = await initOss();
   await client.put(
     `tasks/${updatedTask.taskId}/metadata.json`,
-    JSON.stringify(updatedTask, null, 2),
-    { headers: { "Content-Type": "application/json; charset=utf-8" } }
+    new Blob([JSON.stringify(updatedTask, null, 2)], {
+      type: "application/json; charset=utf-8"
+    })
   );
   return updatedTask;
 }
