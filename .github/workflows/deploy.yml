@@ -39,8 +39,8 @@ jobs:
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
           VITE_OSS_AK: ${{ secrets.VITE_OSS_AK }}
           VITE_OSS_SK: ${{ secrets.VITE_OSS_SK }}
-          VITE_OSS_BUCKET: ${{ secrets.VITE_OSS_BUCKET }}
-          VITE_OSS_REGION: ${{ secrets.VITE_OSS_REGION }}
+          VITE_OSS_BUCKET: ${{ vars.VITE_OSS_BUCKET }}
+          VITE_OSS_REGION: ${{ vars.VITE_OSS_REGION }}
 
       - name: Add SPA fallback
         run: cp dist/index.html dist/404.html

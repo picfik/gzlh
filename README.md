@@ -17,7 +17,7 @@ npm run build
 
 ## GitHub Pages 部署
 
-在仓库 Settings → Secrets and variables → Actions 中添加 `VITE_OSS_AK`、`VITE_OSS_SK`、`VITE_OSS_BUCKET` 和 `VITE_OSS_REGION`。在 Settings → Pages 中将 Source 设为 GitHub Actions。推送到 `main` 后工作流会构建并通过 GitHub Pages Actions 发布 `dist`，无需 `gh-pages` 分支。
+在仓库 Settings → Secrets and variables → Actions 中添加 Repository secrets `VITE_OSS_AK`、`VITE_OSS_SK`，以及 Repository variables `VITE_OSS_BUCKET`、`VITE_OSS_REGION`。在 Settings → Pages 中将 Source 设为 GitHub Actions。推送到 `main` 后工作流会构建并通过 GitHub Pages Actions 发布 `dist`，无需 `gh-pages` 分支。
 
 注意：`VITE_*` 变量会被打包进公开的浏览器代码，GitHub Secrets 不会保护最终构建产物中的 AK/SK。不要在公开站点使用有写权限的长期密钥；后续实现 OSS 时应优先采用受限凭据或服务端签名方案。
 
