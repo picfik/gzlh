@@ -196,7 +196,32 @@ export function addAttachmentToAction(
 ): TaskMetadata {
   findAction(task, nodeId, actionId);
   const nextTask = copyTask(task);
-  findAction(nextTask, nodeId, actionId).attachmentKeys.push(key);
+  const action = findAction(nextTask, nodeId, actionId);
+  if (!action.attachmentKeys.includes(key)) {
+    action.attachmentKeys.push(key);
+  }
   nextTask.auditLog.push(createAuditEntry("upload_attachment", actionId, key));
+  return nextTask;
+}
+
+/**
+ * 从指定动作移除一个附件引用并追加审计记录。
+ */
+export function removeAttachmentFromAction(
+  task: TaskMetadata,
+  nodeId: string,
+  actionId: string,
+  key: string
+): TaskMetadata {
+  const action = findAction(task, nodeId, actionId);
+  const attachmentIndex = action.attachmentKeys.indexOf(key);
+  if (attachmentIndex === -1) {
+    throw new Error("该动作未引用此附件");
+  }
+
+  const nextTask = copyTask(task);
+  const nextAction = findAction(nextTask, nodeId, actionId);
+  nextAction.attachmentKeys.splice(attachmentIndex, 1);
+  nextTask.auditLog.push(createAuditEntry("remove_attachment", actionId, key));
   return nextTask;
 }

@@ -12,6 +12,7 @@ type NodePanelProps = {
   onSaveBasis: (actionId: string, basis: string) => Promise<TaskMetadata>;
   onSaveDescription: (actionId: string, description: string) => Promise<TaskMetadata>;
   onUpload: (actionId: string, file: File) => Promise<void>;
+  onRemoveAttachment: (actionId: string, key: string) => Promise<boolean>;
   onPreview: (key: string) => Promise<string>;
   onCompleteAction: (actionId: string) => Promise<void>;
   onUndoAction: (actionId: string) => Promise<void>;
@@ -28,6 +29,7 @@ export function NodePanel({
   onSaveBasis,
   onSaveDescription,
   onUpload,
+  onRemoveAttachment,
   onPreview,
   onCompleteAction,
   onUndoAction,
@@ -68,6 +70,7 @@ export function NodePanel({
                   onSaveDescription(action.actionId, description)
                 }
                 onUpload={(file) => onUpload(action.actionId, file)}
+                onRemoveAttachment={(key) => onRemoveAttachment(action.actionId, key)}
                 onPreview={onPreview}
                 onComplete={() => onCompleteAction(action.actionId)}
                 onUndo={() => onUndoAction(action.actionId)}

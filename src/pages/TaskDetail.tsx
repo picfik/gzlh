@@ -5,6 +5,7 @@ import {
   addAttachmentToAction,
   completeAction,
   completeNode,
+  removeAttachmentFromAction,
   undoAction,
   updateActionBasis,
   updateActionDescription
@@ -12,6 +13,7 @@ import {
 import {
   loadTask,
   saveTask,
+  deleteAttachmentIfUnreferenced,
   signAttachmentUrl,
   uploadAttachment
 } from "../lib/oss";
@@ -263,6 +265,28 @@ export function TaskDetail() {
     });
   }
 
+  async function handleRemoveAttachment(
+    nodeId: string,
+    actionId: string,
+    key: string
+  ): Promise<boolean> {
+    return withOperationLock(async () => {
+      const currentTask = taskRef.current;
+      if (!currentTask) {
+        throw new Error("任务尚未加载");
+      }
+
+      const nextTask = removeAttachmentFromAction(currentTask, nodeId, actionId, key);
+      const savedTask = await saveTask(nextTask);
+      taskRef.current = savedTask;
+      setTask(savedTask);
+      setIsSnapshot(false);
+      cacheTask(savedTask);
+
+      return deleteAttachmentIfUnreferenced(key);
+    });
+  }
+
   async function handleCompleteNode(nodeId: string): Promise<void> {
     try {
       const savedTask = await persistUpdate((current) => completeNode(current, nodeId));
@@ -414,6 +438,9 @@ export function TaskDetail() {
               )
             }
             onUpload={(actionId, file) => handleUpload(node.nodeId, actionId, file)}
+            onRemoveAttachment={(actionId, key) =>
+              handleRemoveAttachment(node.nodeId, actionId, key)
+            }
             onPreview={handlePreview}
             onCompleteAction={(actionId) => handleCompleteAction(node.nodeId, actionId)}
             onUndoAction={(actionId) => handleUndoAction(node.nodeId, actionId)}

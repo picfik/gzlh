@@ -566,6 +566,16 @@ select {
   opacity: 0.6;
 }
 
+.text-button--danger {
+  color: #a6423c;
+}
+
+.attachment-notice {
+  margin: 8px 0 0;
+  color: #416d50;
+  font-size: 11px;
+}
+
 .action-card__footer {
   display: flex;
   align-items: center;

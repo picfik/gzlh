@@ -10,6 +10,7 @@ type ActionCardProps = {
   onSaveBasis: (basis: string) => Promise<unknown>;
   onSaveDescription: (description: string) => Promise<unknown>;
   onUpload: (file: File) => Promise<void>;
+  onRemoveAttachment: (key: string) => Promise<boolean>;
   onPreview: (key: string) => Promise<string>;
   onComplete: () => Promise<void>;
   onUndo: () => Promise<void>;
@@ -26,6 +27,7 @@ export function ActionCard({
   onSaveBasis,
   onSaveDescription,
   onUpload,
+  onRemoveAttachment,
   onPreview,
   onComplete,
   onUndo
@@ -126,6 +128,7 @@ export function ActionCard({
         required={action.requireAttachment}
         disabled={completed || saving || readOnly}
         onUpload={onUpload}
+        onRemove={onRemoveAttachment}
         onPreview={onPreview}
       />
 

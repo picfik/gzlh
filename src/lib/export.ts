@@ -40,7 +40,12 @@ function formatDate(value: string | number): string {
 function attachmentName(key: string): string {
   const objectName = key.split("/").pop() ?? key;
   const match = objectName.match(/_\d{13}_(.+)$/);
-  return match?.[1] ?? objectName;
+  const encodedName = match?.[1] ?? objectName;
+  try {
+    return decodeURIComponent(encodedName);
+  } catch {
+    return encodedName;
+  }
 }
 
 async function renderAction(action: ActionInstance): Promise<string> {

@@ -5,13 +5,19 @@ type AttachmentUploaderProps = {
   required?: boolean;
   disabled?: boolean;
   onUpload: (file: File) => Promise<void>;
+  onRemove: (key: string) => Promise<boolean>;
   onPreview: (key: string) => Promise<string>;
 };
 
 function getFileName(key: string): string {
   const objectName = key.split("/").pop() ?? key;
   const match = objectName.match(/_\d{13}_(.+)$/);
-  return match?.[1] ?? objectName;
+  const encodedName = match?.[1] ?? objectName;
+  try {
+    return decodeURIComponent(encodedName);
+  } catch {
+    return encodedName;
+  }
 }
 
 export function AttachmentUploader({
@@ -19,18 +25,22 @@ export function AttachmentUploader({
   required = false,
   disabled = false,
   onUpload,
+  onRemove,
   onPreview
 }: AttachmentUploaderProps) {
   const [uploading, setUploading] = useState(false);
   const [previewingKey, setPreviewingKey] = useState("");
+  const [removingKey, setRemovingKey] = useState("");
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   async function handleFileChange(file: File | undefined): Promise<void> {
     if (!file) {
       return;
     }
     setError("");
+    setNotice("");
     setUploading(true);
     try {
       await onUpload(file);
@@ -38,6 +48,27 @@ export function AttachmentUploader({
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function handleRemove(key: string): Promise<void> {
+    if (!window.confirm("从当前动作移除此附件？若其他任务仍引用该文件，OSS 中的文件会保留。")) {
+      return;
+    }
+    setError("");
+    setNotice("");
+    setRemovingKey(key);
+    try {
+      const deleted = await onRemove(key);
+      setNotice(
+        deleted
+          ? "附件已移除，且 OSS 文件已删除。"
+          : "附件已从当前动作移除；其他位置仍有引用，OSS 文件已保留。"
+      );
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setRemovingKey("");
     }
   }
 
@@ -104,16 +135,27 @@ export function AttachmentUploader({
                 <button
                   className="text-button"
                   type="button"
-                  disabled={previewingKey === key}
+                  disabled={previewingKey === key || removingKey === key}
                   onClick={() => void handlePreview(key)}
                 >
                   {previewingKey === key ? "生成链接…" : "预览"}
                 </button>
+                {!disabled && (
+                  <button
+                    className="text-button text-button--danger"
+                    type="button"
+                    disabled={removingKey === key || previewingKey === key}
+                    onClick={() => void handleRemove(key)}
+                  >
+                    {removingKey === key ? "移除中…" : "移除"}
+                  </button>
+                )}
               </div>
             </li>
           ))}
         </ul>
       )}
+      {notice && <p className="attachment-notice" role="status">{notice}</p>}
       {error && <p className="error-message" role="alert">{error}</p>}
     </section>
   );

@@ -16,6 +16,12 @@ ossutil cp .\template.json oss://<bucket-name>/templates/purchase-compliance.jso
 
 上传后可在 OSS 控制台确认该对象存在；应用的 `listTemplates()` 会从 `templates/` 前缀读取 `.json` 对象。
 
+## 附件复用与删除
+
+上传附件时，应用会在 `tasks/` 对象中查找文件名及文件大小都相同的附件；命中时复用已有 OSS Key，只在当前任务 JSON 中新增引用。移除附件时先保存当前任务的引用变更，再扫描所有 `tasks/*/metadata.json`：仍有任意引用就保留 OSS 文件；确认零引用后才删除对象。因此 OSS 凭据需要能够列出 `tasks/`、读取任务元数据，并在无引用时删除附件对象。
+
+文件名在 OSS Key 中使用 URL 编码，以保留原始文件名并避免不同文件名清洗后碰撞。历史上已上传且文件名经过有损清洗的旧 Key 不一定能安全匹配为同名文件，避免错误复用不同附件。
+
 ## 本地 `.env` 调试
 
 1. 在项目根目录复制 `.env.example` 为 `.env`。

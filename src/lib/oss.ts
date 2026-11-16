@@ -199,15 +199,16 @@ export async function saveTask(task: TaskMetadata): Promise<TaskMetadata> {
 }
 
 function safeName(fileName: string): string {
-  const normalizedName = fileName.normalize("NFKC");
-  const extensionIndex = normalizedName.lastIndexOf(".");
+  const extensionIndex = fileName.lastIndexOf(".");
   const hasExtension = extensionIndex > 0;
-  const rawStem = hasExtension ? normalizedName.slice(0, extensionIndex) : normalizedName;
-  const rawExtension = hasExtension ? normalizedName.slice(extensionIndex + 1) : "";
-  const stem = rawStem.replace(/[^a-zA-Z0-9_-]/g, "") || "file";
-  const extension = rawExtension.replace(/[^a-zA-Z0-9]/g, "");
-
-  return extension ? `${stem}.${extension}` : stem;
+  const stem = hasExtension ? fileName.slice(0, extensionIndex) : fileName;
+  const extension = hasExtension ? fileName.slice(extensionIndex + 1) : "";
+  const encodeSegment = (value: string): string =>
+    encodeURIComponent(value).replace(/[!'()*]/g, (character) =>
+      `%${character.charCodeAt(0).toString(16).toUpperCase()}`
+    );
+  const safeStem = encodeSegment(stem) || "file";
+  return extension ? `${safeStem}.${encodeSegment(extension)}` : safeStem;
 }
 
 function safePathSegment(value: string): string {
@@ -219,14 +220,69 @@ export async function uploadAttachment(
   actionId: string,
   file: File
 ): Promise<string> {
+  const client = await initOss();
+  const encodedName = safeName(file.name);
+  const existingObjects = await listAllObjects("tasks/");
+  const existingMatch = existingObjects.find((object) => {
+    if (object.size !== file.size || !object.name.includes("/attachments/")) {
+      return false;
+    }
+    const objectName = object.name.split("/").pop() ?? "";
+    const match = objectName.match(/_\d{13}_(.+)$/);
+    return match?.[1] === encodedName;
+  });
+
+  if (existingMatch) {
+    return existingMatch.name;
+  }
+
   const safeTaskId = safePathSegment(taskId);
   const safeActionId = safePathSegment(actionId);
-  const key = `tasks/${safeTaskId}/attachments/${safeActionId}_${Date.now()}_${safeName(file.name)}`;
-  const client = await initOss();
+  const key = `tasks/${safeTaskId}/attachments/${safeActionId}_${Date.now()}_${encodedName}`;
   await client.put(key, file, {
     headers: { "Content-Type": file.type || "application/octet-stream" }
   });
   return key;
+}
+
+/**
+ * 删除附件引用后扫描所有任务；仅在全局引用数为零时删除 OSS 对象。
+ */
+export async function deleteAttachmentIfUnreferenced(key: string): Promise<boolean> {
+  if (!/^tasks\/[^/]+\/attachments\/.+$/.test(key)) {
+    throw new Error(`无效的附件 OSS Key：${key}`);
+  }
+
+  const client = await initOss();
+  const metadataKeys = (await listAllObjects("tasks/"))
+    .map((object) => object.name)
+    .filter((objectKey) => /^tasks\/[^/]+\/metadata\.json$/.test(objectKey));
+  const tasks = await mapWithConcurrency(metadataKeys, 5, (metadataKey) =>
+    readJson<TaskMetadata>(metadataKey)
+  );
+  const referenceCount = tasks.reduce(
+    (count, task) =>
+      count +
+      task.nodes.reduce(
+        (nodeCount, node) =>
+          nodeCount +
+          node.actions.reduce(
+            (actionCount, action) =>
+              actionCount +
+              action.attachmentKeys.filter((attachmentKey) => attachmentKey === key).length,
+            0
+          ),
+        0
+      ),
+    0
+  );
+
+  if (referenceCount > 0) {
+    return false;
+  }
+
+  await client.delete(key);
+  return true;
 }
 
 export async function signAttachmentUrl(key: string, expires = 3600): Promise<string> {
