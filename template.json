@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "templateId": "purchase-compliance",
+  "name": "采购任务合规流程",
+  "description": "采购事项从任务接收到最终成果归档的合规办理流程。",
+  "nodes": [
+    {
+      "schemaVersion": 1,
+      "nodeId": "node-01-task-receipt",
+      "name": "任务接收",
+      "description": "确认任务来源、归口管理部门及适用制度。",
+      "actions": [
+        {
+          "schemaVersion": 1,
+          "actionId": "action-upload-source-file",
+          "name": "上传来源文件",
+          "requireBasis": false,
+          "requireAttachment": true,
+          "description": "上传任务通知、需求材料或其他来源文件。"
+        },
+        {
+          "schemaVersion": 1,
+          "actionId": "action-check-governing-regulation",
+          "name": "查归口制度",
+          "requireBasis": true,
+          "requireAttachment": false,
+          "description": "查明本事项适用的归口管理制度，并填写制度名称及条款依据。"
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "nodeId": "node-02-plan",
+      "name": "方案制定",
+      "description": "根据任务要求和适用制度形成实施方案及预算明细。",
+      "actions": [
+        {
+          "schemaVersion": 1,
+          "actionId": "action-write-plan",
+          "name": "写方案",
+          "requireBasis": true,
+          "requireAttachment": true,
+          "description": "填写方案所依据的制度条款，并上传方案文件。"
+        },
+        {
+          "schemaVersion": 1,
+          "actionId": "action-budget-details",
+          "name": "预算明细",
+          "requireBasis": false,
+          "requireAttachment": true,
+          "description": "整理预算构成、测算过程及明细附件。"
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "nodeId": "node-03-execution",
+      "name": "执行",
+      "description": "按已确认的方案开展采购执行并留存过程材料。",
+      "actions": [
+        {
+          "schemaVersion": 1,
+          "actionId": "action-inquiry-comparison",
+          "name": "询价比价",
+          "requireBasis": false,
+          "requireAttachment": true,
+          "description": "记录询价对象、报价信息及比价结果，并上传相关材料。"
+        },
+        {
+          "schemaVersion": 1,
+          "actionId": "action-process-records",
+          "name": "过程记录",
+          "requireBasis": false,
+          "requireAttachment": true,
+          "description": "整理采购执行过程记录并上传佐证文件。"
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "nodeId": "node-04-review",
+      "name": "复核",
+      "description": "对采购办理过程和材料进行合规性自查。",
+      "actions": [
+        {
+          "schemaVersion": 1,
+          "actionId": "action-compliance-self-check",
+          "name": "合规自查",
+          "requireBasis": true,
+          "requireAttachment": true,
+          "description": "填写自查所依据的制度条款，并上传自查记录。"
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "nodeId": "node-05-archive",
+      "name": "归档",
+      "description": "汇总并保存采购任务最终成果。",
+      "actions": [
+        {
+          "schemaVersion": 1,
+          "actionId": "action-upload-final-deliverable",
+          "name": "上传最终成果",
+          "requireBasis": false,
+          "requireAttachment": true,
+          "description": "上传最终成果及必要的归档材料。"
+        }
+      ]
+    }
+  ]
+}
