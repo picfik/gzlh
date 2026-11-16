@@ -55,7 +55,7 @@ async function listAllObjects(prefix: string, delimiter?: string): Promise<OSS.O
       },
       {}
     );
-    objects.push(...result.objects);
+    objects.push(...(result.objects ?? []));
     isTruncated = result.isTruncated;
     marker = result.nextMarker;
 
@@ -83,7 +83,7 @@ async function listTaskPrefixes(): Promise<string[]> {
       },
       {}
     );
-    result.prefixes.forEach((prefix) => prefixes.add(prefix));
+    (result.prefixes ?? []).forEach((prefix) => prefixes.add(prefix));
     isTruncated = result.isTruncated;
     marker = result.nextMarker;
 
