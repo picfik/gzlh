@@ -4,6 +4,7 @@ import { NewTaskDialog } from "../components/NewTaskDialog";
 import { TaskCard } from "../components/TaskCard";
 import {
   createTaskFromTemplate,
+  deleteTask,
   listTasks,
   listTemplates
 } from "../lib/oss";
@@ -58,13 +59,16 @@ export function TaskList() {
   const [isLoading, setIsLoading] = useState(cache.tasks.length === 0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState(cache.error);
+  const [notice, setNotice] = useState("");
   const [showNewTaskDialog, setShowNewTaskDialog] = useState(false);
+  const [deletingTaskId, setDeletingTaskId] = useState("");
   const hasLoaded = useRef(cache.tasks.length > 0);
   const [isOnline, setIsOnline] = useState(
     () => typeof navigator === "undefined" || navigator.onLine
   );
 
   const refresh = useCallback(async () => {
+    setNotice("");
     if (!hasLoaded.current) {
       setIsLoading(true);
     }
@@ -150,6 +154,72 @@ export function TaskList() {
     }
   }
 
+  async function handleDeleteTask(task: TaskListItem): Promise<void> {
+    if (!isOnline || !navigator.onLine || isRefreshing || deletingTaskId) {
+      return;
+    }
+    if (!window.confirm(
+      `确定永久删除任务“${task.title}”吗？仍被其他任务引用的附件会保留在 OSS。`
+    )) {
+      return;
+    }
+
+    setDeletingTaskId(task.taskId);
+    setError("");
+    setNotice("");
+    try {
+      const result = await deleteTask(task.taskId);
+      const updatedTasks = tasks.filter((item) => item.taskId !== task.taskId);
+      setTasks(updatedTasks);
+      hasLoaded.current = true;
+
+      const cacheWarnings: string[] = [];
+      try {
+        window.localStorage.setItem(TASK_CACHE_KEY, JSON.stringify(updatedTasks));
+      } catch (reason) {
+        cacheWarnings.push(`任务列表缓存更新失败：${getErrorMessage(reason)}`);
+      }
+      try {
+        window.localStorage.removeItem(`compliance-assistant:task:${task.taskId}`);
+      } catch (reason) {
+        cacheWarnings.push(`离线任务快照清理失败：${getErrorMessage(reason)}`);
+      }
+
+      const attachmentSummary =
+        `已清理 ${result.deletedAttachmentCount} 个未被引用的附件，` +
+        `保留 ${result.preservedAttachmentCount} 个仍被其他任务引用的附件。`;
+      setNotice(
+        `任务已删除。${attachmentSummary}` +
+        (cacheWarnings.length > 0 ? ` ${cacheWarnings.join("；")}` : "")
+      );
+    } catch (reason) {
+      const message = `删除任务失败：${getErrorMessage(reason)}`;
+      setError(message);
+      try {
+        const freshTasks = await listTasks();
+        setTasks(freshTasks);
+        if (!freshTasks.some((item) => item.taskId === task.taskId)) {
+          try {
+            window.localStorage.removeItem(`compliance-assistant:task:${task.taskId}`);
+          } catch (cacheReason) {
+            setError(
+              `${message}；任务记录已删除，但离线快照清理失败：${getErrorMessage(cacheReason)}`
+            );
+          }
+        }
+        try {
+          window.localStorage.setItem(TASK_CACHE_KEY, JSON.stringify(freshTasks));
+        } catch (cacheReason) {
+          setError(`${message}；任务列表缓存更新失败：${getErrorMessage(cacheReason)}`);
+        }
+      } catch (refreshReason) {
+        setError(`${message}；刷新任务列表失败：${getErrorMessage(refreshReason)}`);
+      }
+    } finally {
+      setDeletingTaskId("");
+    }
+  }
+
   return (
     <main className="page-shell">
       <header className="page-header">
@@ -161,7 +231,7 @@ export function TaskList() {
         <button
           className="button button--primary"
           type="button"
-          disabled={!isOnline}
+          disabled={!isOnline || Boolean(deletingTaskId)}
           onClick={() => setShowNewTaskDialog(true)}
         >
           {isOnline ? "+ 新建任务" : "离线状态无法保存"}
@@ -187,6 +257,7 @@ export function TaskList() {
           </button>
         </div>
       )}
+      {notice && <p className="success-message" role="status">{notice}</p>}
 
       {isLoading ? (
         <p className="loading-message">加载中…</p>
@@ -201,7 +272,15 @@ export function TaskList() {
         </section>
       ) : (
         <section className="task-grid" aria-label="任务列表">
-          {tasks.map((task) => <TaskCard key={task.taskId} task={task} />)}
+          {tasks.map((task) => (
+            <TaskCard
+              key={task.taskId}
+              task={task}
+              isDeleting={deletingTaskId === task.taskId}
+              disabled={!isOnline || isRefreshing || Boolean(deletingTaskId)}
+              onDelete={() => void handleDeleteTask(task)}
+            />
+          ))}
         </section>
       )}
 

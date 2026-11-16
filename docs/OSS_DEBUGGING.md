@@ -22,6 +22,8 @@ ossutil cp .\template.json oss://<bucket-name>/templates/purchase-compliance.jso
 
 文件名在 OSS Key 中使用 URL 编码，以保留原始文件名并避免不同文件名清洗后碰撞。历史上已上传且文件名经过有损清洗的旧 Key 不一定能安全匹配为同名文件，避免错误复用不同附件。
 
+删除任务时会先删除任务的 `metadata.json`，再清理该任务拥有且未被其他任务引用的附件。被其他任务引用的对象会保留；任务列表以 `metadata.json` 为准，因此共享附件残留在已删除任务的 OSS 前缀下也不会显示为无效任务。若附件清理失败，错误会提示任务记录已删除且附件仍留在 OSS，可之后手动清理。
+
 ## 本地 `.env` 调试
 
 1. 在项目根目录复制 `.env.example` 为 `.env`。

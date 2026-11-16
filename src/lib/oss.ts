@@ -67,34 +67,6 @@ async function listAllObjects(prefix: string, delimiter?: string): Promise<OSS.O
   return objects;
 }
 
-async function listTaskPrefixes(): Promise<string[]> {
-  const client = await initOss();
-  const prefixes = new Set<string>();
-  let marker: string | undefined;
-  let isTruncated = true;
-
-  while (isTruncated) {
-    const result = await client.list(
-      {
-        prefix: "tasks/",
-        delimiter: "/",
-        marker,
-        "max-keys": 1000
-      },
-      {}
-    );
-    (result.prefixes ?? []).forEach((prefix) => prefixes.add(prefix));
-    isTruncated = result.isTruncated;
-    marker = result.nextMarker;
-
-    if (isTruncated && !marker) {
-      throw new Error("OSS 任务目录列表分页缺少游标");
-    }
-  }
-
-  return [...prefixes];
-}
-
 async function readJson<T>(key: string): Promise<T> {
   const client = await initOss();
   const result = await client.get(key);
@@ -143,10 +115,10 @@ async function mapWithConcurrency<T, R>(
 export async function listTasks(): Promise<
   { taskId: string; title: string; status: TaskStatus; currentNodeName: string }[]
 > {
-  const prefixes = await listTaskPrefixes();
-  const taskIds = prefixes
-    .map((prefix) => prefix.slice("tasks/".length).replace(/\/$/, ""))
-    .filter(Boolean);
+  const metadataKeys = (await listAllObjects("tasks/"))
+    .map((object) => object.name)
+    .filter((key) => /^tasks\/[^/]+\/metadata\.json$/.test(key));
+  const taskIds = metadataKeys.map((key) => key.split("/")[1]);
 
   return mapWithConcurrency(taskIds, 5, async (taskId) => {
     const task = await loadTask(taskId);
@@ -283,6 +255,76 @@ export async function deleteAttachmentIfUnreferenced(key: string): Promise<boole
 
   await client.delete(key);
   return true;
+}
+
+export async function deleteTask(
+  taskId: string
+): Promise<{ deletedAttachmentCount: number; preservedAttachmentCount: number }> {
+  if (!/^[a-zA-Z0-9_-]+$/.test(taskId)) {
+    throw new Error(`无效的任务 ID：${taskId}`);
+  }
+
+  const task = await loadTask(taskId);
+  if (task.taskId !== taskId) {
+    throw new Error(`任务元数据 ID 不匹配：${taskId}`);
+  }
+
+  const client = await initOss();
+  const objects = await listAllObjects("tasks/");
+  const metadataKey = `tasks/${taskId}/metadata.json`;
+  const otherMetadataKeys = objects
+    .map((object) => object.name)
+    .filter(
+      (key) =>
+        /^tasks\/[^/]+\/metadata\.json$/.test(key) &&
+        key !== metadataKey
+    );
+  const otherTasks = await mapWithConcurrency(otherMetadataKeys, 5, (key) =>
+    readJson<TaskMetadata>(key)
+  );
+  const otherReferences = new Set(
+    otherTasks.flatMap((otherTask) =>
+      otherTask.nodes.flatMap((node) =>
+        node.actions.flatMap((action) => action.attachmentKeys)
+      )
+    )
+  );
+  const existingObjectKeys = new Set(objects.map((object) => object.name));
+  const taskAttachmentPrefix = `tasks/${taskId}/attachments/`;
+  const taskAttachmentKeys = new Set([
+    ...objects
+      .map((object) => object.name)
+      .filter((key) => key.startsWith(taskAttachmentPrefix)),
+    ...task.nodes.flatMap((node) =>
+      node.actions.flatMap((action) => action.attachmentKeys)
+    )
+  ]);
+  const attachmentKeys = [...taskAttachmentKeys].filter(
+    (key) =>
+      existingObjectKeys.has(key) &&
+      /^tasks\/[^/]+\/attachments\/.+$/.test(key)
+  );
+  const unsharedAttachmentKeys = attachmentKeys.filter(
+    (key) => !otherReferences.has(key)
+  );
+  const preservedAttachmentCount = attachmentKeys.length - unsharedAttachmentKeys.length;
+
+  await client.delete(metadataKey);
+
+  let deletedAttachmentCount = 0;
+  for (const key of unsharedAttachmentKeys) {
+    try {
+      await client.delete(key);
+      deletedAttachmentCount += 1;
+    } catch (error) {
+      throw new Error(
+        `任务元数据已删除，但清理附件失败；其余附件仍保留在 OSS：${key}`,
+        { cause: error }
+      );
+    }
+  }
+
+  return { deletedAttachmentCount, preservedAttachmentCount };
 }
 
 export async function signAttachmentUrl(key: string, expires = 3600): Promise<string> {
