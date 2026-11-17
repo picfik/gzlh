@@ -224,7 +224,14 @@ async function mapWithConcurrency<T, R>(
 }
 
 export async function listTasks(): Promise<
-  { taskId: string; title: string; status: TaskStatus; currentNodeName: string }[]
+  {
+    taskId: string;
+    title: string;
+    status: TaskStatus;
+    currentNodeName: string;
+    isImportant: boolean;
+    isOnHold: boolean;
+  }[]
 > {
   const metadataKeys = (await listAllObjects("tasks/"))
     .map((object) => object.name)
@@ -245,7 +252,9 @@ export async function listTasks(): Promise<
       taskId: task.taskId,
       title: task.title,
       status: task.status,
-      currentNodeName: currentNode?.name ?? ""
+      currentNodeName: currentNode?.name ?? "",
+      isImportant: task.isImportant ?? false,
+      isOnHold: task.isOnHold ?? false
     };
   });
 }
@@ -279,6 +288,38 @@ export async function saveTask(task: TaskMetadata): Promise<TaskMetadata> {
     })
   );
   return updatedTask;
+}
+
+export async function setTaskDisposition(
+  taskId: string,
+  disposition: "important" | "on_hold",
+  enabled: boolean
+): Promise<TaskMetadata> {
+  const task = await loadTask(taskId);
+  const isImportant = disposition === "important"
+    ? enabled
+    : enabled ? false : task.isImportant ?? false;
+  const isOnHold = disposition === "on_hold"
+    ? enabled
+    : enabled ? false : task.isOnHold ?? false;
+  const action = disposition === "important"
+    ? enabled ? "mark_important" : "unmark_important"
+    : enabled ? "put_on_hold" : "resume_task";
+
+  return saveTask({
+    ...task,
+    isImportant,
+    isOnHold,
+    auditLog: [
+      ...task.auditLog,
+      {
+        schemaVersion: SCHEMA_VERSION,
+        timestamp: new Date().toISOString(),
+        action,
+        targetId: taskId
+      }
+    ]
+  });
 }
 
 function safeName(fileName: string): string {

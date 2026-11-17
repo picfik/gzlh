@@ -115,6 +115,8 @@ export interface TaskMetadata {
   taskId: string;
   templateId: string;
   title: string;
+  isImportant?: boolean;
+  isOnHold?: boolean;
   source: string;
   createdAt: string;
   lastModified: string;
@@ -129,4 +131,6 @@ export type TaskListItem = {
   title: string;
   status: TaskStatus;
   currentNodeName: string;
+  isImportant?: boolean;
+  isOnHold?: boolean;
 };

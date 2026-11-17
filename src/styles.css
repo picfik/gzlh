@@ -120,6 +120,13 @@ select {
   gap: 10px;
 }
 
+.task-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
 .task-card h2 {
   margin: 0;
   font-size: 16px;
@@ -140,7 +147,6 @@ select {
 }
 
 .task-card__delete {
-  margin-top: 12px;
   padding: 5px 0;
   color: #a6423c;
   background: transparent;
@@ -148,6 +154,34 @@ select {
   font: inherit;
   font-size: 12px;
   cursor: pointer;
+}
+
+.task-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.task-card__flag {
+  padding: 5px 0;
+  color: #52695d;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.task-card__flag[aria-pressed="true"] {
+  color: #315d4d;
+  font-weight: 700;
+}
+
+.task-card__flag:disabled {
+  color: #9aa39d;
+  cursor: not-allowed;
 }
 
 .task-card__delete:disabled {
@@ -173,6 +207,16 @@ select {
 .status-badge--in_progress {
   color: #8c6237;
   background: #fbf0df;
+}
+
+.status-badge--important {
+  color: #9a532f;
+  background: #fff0e5;
+}
+
+.status-badge--on-hold {
+  color: #596c7a;
+  background: #edf2f6;
 }
 
 .task-card__node {

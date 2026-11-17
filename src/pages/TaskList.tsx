@@ -6,7 +6,8 @@ import {
   createTaskFromTemplate,
   deleteTask,
   listTasks,
-  listTemplates
+  listTemplates,
+  setTaskDisposition
 } from "../lib/oss";
 import type { TaskListItem, Template } from "../types";
 
@@ -21,6 +22,8 @@ function isTaskListItem(value: unknown): value is TaskListItem {
     typeof item.taskId === "string" &&
     typeof item.title === "string" &&
     typeof item.currentNodeName === "string" &&
+    (item.isImportant === undefined || typeof item.isImportant === "boolean") &&
+    (item.isOnHold === undefined || typeof item.isOnHold === "boolean") &&
     (item.status === "pending" ||
       item.status === "in_progress" ||
       item.status === "completed" ||
@@ -47,6 +50,14 @@ function readCachedTasks(): { tasks: TaskListItem[]; error: string } {
   }
 }
 
+function sortTasks(items: TaskListItem[]): TaskListItem[] {
+  return [...items].sort((left, right) => {
+    const rank = (task: TaskListItem): number =>
+      task.isImportant ? 0 : task.isOnHold ? 2 : 1;
+    return rank(left) - rank(right);
+  });
+}
+
 function getErrorMessage(reason: unknown): string {
   return reason instanceof Error ? reason.message : String(reason);
 }
@@ -62,6 +73,7 @@ export function TaskList() {
   const [notice, setNotice] = useState("");
   const [showNewTaskDialog, setShowNewTaskDialog] = useState(false);
   const [deletingTaskId, setDeletingTaskId] = useState("");
+  const [updatingTaskId, setUpdatingTaskId] = useState("");
   const hasLoaded = useRef(cache.tasks.length > 0);
   const [isOnline, setIsOnline] = useState(
     () => typeof navigator === "undefined" || navigator.onLine
@@ -220,6 +232,44 @@ export function TaskList() {
     }
   }
 
+  async function handleToggleDisposition(
+    task: TaskListItem,
+    disposition: "important" | "on_hold"
+  ): Promise<void> {
+    if (!isOnline || !navigator.onLine || isRefreshing || deletingTaskId || updatingTaskId) {
+      return;
+    }
+
+    const enabled = disposition === "important"
+      ? !task.isImportant
+      : !task.isOnHold;
+    setUpdatingTaskId(task.taskId);
+    setError("");
+    setNotice("");
+    try {
+      const updatedTask = await setTaskDisposition(task.taskId, disposition, enabled);
+      const updatedTasks = tasks.map((item) =>
+        item.taskId === task.taskId
+          ? {
+              ...item,
+              isImportant: updatedTask.isImportant ?? false,
+              isOnHold: updatedTask.isOnHold ?? false
+            }
+          : item
+      );
+      setTasks(updatedTasks);
+      try {
+        window.localStorage.setItem(TASK_CACHE_KEY, JSON.stringify(updatedTasks));
+      } catch (reason) {
+        setNotice(`标记已保存在 OSS，但本地缓存写入失败：${getErrorMessage(reason)}`);
+      }
+    } catch (reason) {
+      setError(`更新任务标记失败：${getErrorMessage(reason)}`);
+    } finally {
+      setUpdatingTaskId("");
+    }
+  }
+
   return (
     <main className="page-shell">
       <header className="page-header">
@@ -277,13 +327,16 @@ export function TaskList() {
         </section>
       ) : (
         <section className="task-grid" aria-label="任务列表">
-          {tasks.map((task) => (
+          {sortTasks(tasks).map((task) => (
             <TaskCard
               key={task.taskId}
               task={task}
               isDeleting={deletingTaskId === task.taskId}
-              disabled={!isOnline || isRefreshing || Boolean(deletingTaskId)}
+              isUpdating={updatingTaskId === task.taskId}
+              disabled={!isOnline || isRefreshing || Boolean(deletingTaskId || updatingTaskId)}
               onDelete={() => void handleDeleteTask(task)}
+              onToggleImportant={() => void handleToggleDisposition(task, "important")}
+              onToggleOnHold={() => void handleToggleDisposition(task, "on_hold")}
             />
           ))}
         </section>
