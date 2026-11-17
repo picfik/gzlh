@@ -35,20 +35,26 @@ export function AttachmentUploader({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  async function handleFileChange(file: File | undefined): Promise<void> {
-    if (!file) {
+  async function handleFileChange(files: FileList | null): Promise<void> {
+    const selectedFiles = Array.from(files ?? []);
+    if (selectedFiles.length === 0) {
       return;
     }
     setError("");
     setNotice("");
     setUploading(true);
-    try {
-      await onUpload(file);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
-    } finally {
-      setUploading(false);
+    const failures: string[] = [];
+    for (const file of selectedFiles) {
+      try {
+        await onUpload(file);
+      } catch (reason) {
+        failures.push(`${file.name}: ${reason instanceof Error ? reason.message : String(reason)}`);
+      }
     }
+    if (failures.length > 0) {
+      setError(`以下文件上传失败：${failures.join("；")}`);
+    }
+    setUploading(false);
   }
 
   async function handleRemove(key: string): Promise<void> {
@@ -102,11 +108,11 @@ export function AttachmentUploader({
             {uploading ? "上传中…" : "选择文件"}
             <input
               type="file"
+              multiple
               hidden
               disabled={disabled || uploading}
               onChange={(event) => {
-                const file = event.currentTarget.files?.[0];
-                void handleFileChange(file);
+                void handleFileChange(event.currentTarget.files);
                 event.currentTarget.value = "";
               }}
             />
