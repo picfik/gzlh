@@ -94,7 +94,9 @@ function renderAuditEntry(entry: AuditEntry): string {
  * 生成包含任务、节点、动作、签名附件链接及审计时间线的打印 HTML。
  */
 export async function createTaskRecordHtml(task: TaskMetadata): Promise<string> {
-  const currentNode = task.nodes.find((node) => node.nodeId === task.currentNodeId);
+  const currentNode = task.status === "archived"
+    ? undefined
+    : task.nodes.find((node) => node.nodeId === task.currentNodeId);
   const nodes = await Promise.all(
     task.nodes.map(async (node) => {
       const actions = await Promise.all(node.actions.map(renderAction));

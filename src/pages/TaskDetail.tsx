@@ -452,7 +452,9 @@ export function TaskDetail() {
     setRetryCount((count) => count + 1);
   }
 
-  const currentNode = task?.nodes.find((node) => node.nodeId === task.currentNodeId);
+  const currentNode = task?.status === "archived"
+    ? undefined
+    : task?.nodes.find((node) => node.nodeId === task.currentNodeId);
 
   if (loading) {
     return (

@@ -241,7 +241,7 @@ export async function listTasks(): Promise<
 
   return mapWithConcurrency(taskIds, 5, async (taskId) => {
     const task = await loadTask(taskId);
-    const currentNode = task.currentNodeId
+    const currentNode = task.status !== "archived" && task.currentNodeId
       ? task.nodes.find((node) => node.nodeId === task.currentNodeId)
       : undefined;
 
@@ -253,7 +253,7 @@ export async function listTasks(): Promise<
       taskId: task.taskId,
       title: task.title,
       status: task.status,
-      currentNodeName: currentNode?.name ?? "",
+      currentNodeName: task.status === "archived" ? "已归档" : currentNode?.name ?? "",
       isImportant: task.isImportant ?? false,
       isOnHold: task.isOnHold ?? false
     };
@@ -301,7 +301,7 @@ export async function searchTasks(query: string): Promise<GlobalSearchResult[]> 
     addMatch(task.templateId, "模板");
     addMatch(task.taskId, "任务编号");
 
-    const currentNode = task.currentNodeId
+    const currentNode = task.status !== "archived" && task.currentNodeId
       ? task.nodes.find((node) => node.nodeId === task.currentNodeId)
       : undefined;
 
@@ -332,11 +332,17 @@ export async function searchTasks(query: string): Promise<GlobalSearchResult[]> 
       return [];
     }
 
+    const searchStatus: TaskStatus =
+      task.status === "archived" ||
+      (task.nodes.length > 0 && task.nodes.every((node) => node.status === "completed"))
+        ? "archived"
+        : task.status;
+
     return [{
       taskId: task.taskId,
       title: task.title,
-      status: task.status,
-      currentNodeName: currentNode?.name ?? "",
+      status: searchStatus,
+      currentNodeName: searchStatus === "archived" ? "已归档" : currentNode?.name ?? "",
       matches: matches.slice(0, 6)
     }];
   }).sort((left, right) => left.title.localeCompare(right.title, "zh-CN"));
@@ -355,7 +361,35 @@ export async function listTemplates(): Promise<Template[]> {
 }
 
 export async function loadTask(taskId: string): Promise<TaskMetadata> {
-  return readJson<TaskMetadata>(`tasks/${taskId}/metadata.json`);
+  const task = await readJson<TaskMetadata>(`tasks/${taskId}/metadata.json`);
+  if (task.status === "archived" && task.currentNodeId !== null) {
+    return saveTask({
+      ...task,
+      currentNodeId: null
+    });
+  }
+  if (
+    task.status !== "archived" &&
+    task.nodes.length > 0 &&
+    task.nodes.every((node) => node.status === "completed")
+  ) {
+    return saveTask({
+      ...task,
+      status: "archived",
+      currentNodeId: null,
+      auditLog: [
+        ...task.auditLog,
+        {
+          schemaVersion: SCHEMA_VERSION,
+          timestamp: new Date().toISOString(),
+          action: "archive",
+          targetId: task.taskId,
+          detail: "自动归档：所有流程节点已完成"
+        }
+      ]
+    });
+  }
+  return task;
 }
 
 export async function saveTask(task: TaskMetadata): Promise<TaskMetadata> {

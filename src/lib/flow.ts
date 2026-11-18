@@ -106,6 +106,9 @@ export function completeAction(
   const nextAction = findAction(nextTask, nodeId, actionId);
   nextAction.status = "completed";
   nextAction.completedAt = Date.now();
+  if (nextTask.status === "pending") {
+    nextTask.status = "in_progress";
+  }
   nextTask.auditLog.push(createAuditEntry("complete_action", actionId));
   return nextTask;
 }
@@ -254,8 +257,17 @@ export function completeNode(
   nextTask.nodes[nodeIndex].status = "completed";
   if (nextNode) {
     nextTask.currentNodeId = nextNode.nodeId;
+    if (nextTask.status === "pending") {
+      nextTask.status = "in_progress";
+    }
+  } else {
+    nextTask.currentNodeId = null;
+    nextTask.status = "archived";
   }
   nextTask.auditLog.push(createAuditEntry("complete_node", nodeId));
+  if (!nextNode) {
+    nextTask.auditLog.push(createAuditEntry("archive", nextTask.taskId));
+  }
   return nextTask;
 }
 
