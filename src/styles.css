@@ -151,6 +151,20 @@ select {
   box-shadow: 0 5px 16px rgba(23, 59, 53, 0.08);
 }
 
+.search-result-card--archived {
+  background: #edf1ef;
+  border-color: #ccd7d1;
+}
+
+.search-result-card--archived:hover {
+  border-color: #aebdb5;
+}
+
+.search-result-card--archived h2,
+.search-result-card--archived p {
+  color: #65736b;
+}
+
 .search-result-card__heading {
   display: flex;
   align-items: flex-start;
@@ -204,6 +218,24 @@ select {
 .task-card:hover {
   border-color: #a9beb0;
   transform: translateY(-2px);
+}
+
+.task-card--archived {
+  background: #edf1ef;
+  border-color: #ccd7d1;
+}
+
+.task-card--archived:hover {
+  border-color: #aebdb5;
+}
+
+.task-card--archived h2,
+.task-card--archived .task-card__node {
+  color: #65736b;
+}
+
+.task-card--archived .task-card__link {
+  color: #718078;
 }
 
 .task-card__top {

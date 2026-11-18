@@ -403,7 +403,7 @@ export function TaskList() {
               <div className="task-grid" aria-label="搜索结果">
                 {searchResults.map((result) => (
                   <Link
-                    className="search-result-card"
+                    className={`search-result-card${result.status === "archived" ? " search-result-card--archived" : ""}`}
                     key={result.taskId}
                     to={`/task/${encodeURIComponent(result.taskId)}`}
                   >

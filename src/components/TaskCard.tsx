@@ -28,7 +28,9 @@ export function TaskCard({
   onToggleOnHold
 }: TaskCardProps) {
   return (
-    <article className="task-card">
+    <article
+      className={`task-card${task.status === "archived" ? " task-card--archived" : ""}`}
+    >
       <Link className="task-card__content" to={`/task/${encodeURIComponent(task.taskId)}`}>
         <div className="task-card__top">
           <h2>{task.title}</h2>
