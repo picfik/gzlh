@@ -10,7 +10,8 @@ import {
   selectWorkflowForNode,
   undoAction,
   updateActionBasis,
-  updateActionDescription
+  updateActionDescription,
+  updateTaskTitle
 } from "../lib/flow";
 import {
   loadTask,
@@ -51,6 +52,8 @@ export function TaskDetail() {
   const [workflowError, setWorkflowError] = useState("");
   const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
   const taskRef = useRef<TaskMetadata | null>(null);
   const operationInProgress = useRef(false);
 
@@ -102,6 +105,8 @@ export function TaskDetail() {
   function setLoadedTask(loadedTask: TaskMetadata, snapshot: boolean): void {
     taskRef.current = loadedTask;
     setTask(loadedTask);
+    setTitleDraft(loadedTask.title);
+    setIsEditingTitle(false);
     setIsSnapshot(snapshot);
     setExpandedNodeId(loadedTask.currentNodeId);
   }
@@ -285,6 +290,45 @@ export function TaskDetail() {
     [withOperationLock]
   );
 
+  async function handleSaveTitle(): Promise<void> {
+    try {
+      const savedTask = await persistUpdate((current) =>
+        updateTaskTitle(current, titleDraft)
+      );
+      setTitleDraft(savedTask.title);
+      setIsEditingTitle(false);
+      setError("");
+
+      try {
+        const cachedTasks = window.localStorage.getItem("compliance-assistant:task-list:v1");
+        if (cachedTasks) {
+          const parsed: unknown = JSON.parse(cachedTasks);
+          if (Array.isArray(parsed)) {
+            const updatedTasks = parsed.map((item: unknown) => {
+              if (
+                typeof item === "object" &&
+                item !== null &&
+                "taskId" in item &&
+                item.taskId === savedTask.taskId
+              ) {
+                return { ...item, title: savedTask.title };
+              }
+              return item;
+            });
+            window.localStorage.setItem(
+              "compliance-assistant:task-list:v1",
+              JSON.stringify(updatedTasks)
+            );
+          }
+        }
+      } catch (cacheReason) {
+        setError(`任务名称已保存，但任务列表缓存更新失败：${getErrorMessage(cacheReason)}`);
+      }
+    } catch (reason) {
+      window.alert(`修改任务名称失败：${getErrorMessage(reason)}`);
+    }
+  }
+
   async function handleUpload(nodeId: string, actionId: string, file: File): Promise<void> {
     await withOperationLock(async () => {
       const currentTask = taskRef.current;
@@ -462,7 +506,64 @@ export function TaskDetail() {
       <header className="detail-header">
         <div className="detail-header__title">
           <p className="eyebrow">TASK DETAIL</p>
-          <h1>{task.title}</h1>
+          {isEditingTitle ? (
+            <div className="detail-title-editor">
+              <label className="field" htmlFor="task-title-input">
+                <span>任务名称</span>
+              </label>
+              <div className="detail-title-editor__row">
+                <input
+                  id="task-title-input"
+                  className="detail-title-editor__input"
+                  value={titleDraft}
+                  disabled={saving || readOnly}
+                  autoFocus
+                  onChange={(event) => setTitleDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void handleSaveTitle();
+                    }
+                    if (event.key === "Escape") {
+                      setTitleDraft(task.title);
+                      setIsEditingTitle(false);
+                    }
+                  }}
+                />
+                <button
+                  className="button button--primary button--small"
+                  type="button"
+                  disabled={saving || readOnly || !titleDraft.trim()}
+                  onClick={() => void handleSaveTitle()}
+                >
+                  保存
+                </button>
+                <button
+                  className="button button--secondary button--small"
+                  type="button"
+                  disabled={saving}
+                  onClick={() => {
+                    setTitleDraft(task.title);
+                    setIsEditingTitle(false);
+                  }}
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="detail-title-heading">
+              <h1>{task.title}</h1>
+              <button
+                className="text-button detail-title-heading__edit"
+                type="button"
+                disabled={saving || readOnly}
+                onClick={() => setIsEditingTitle(true)}
+              >
+                修改名称
+              </button>
+            </div>
+          )}
           <p className="detail-source">来源：{task.source || "未填写"}</p>
         </div>
         <div className="detail-summary">

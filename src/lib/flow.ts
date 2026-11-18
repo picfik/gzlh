@@ -354,6 +354,30 @@ export function removeAttachmentFromAction(
   return nextTask;
 }
 
+/**
+ * 更新任务名称并追加审计记录。
+ */
+export function updateTaskTitle(
+  task: TaskMetadata,
+  title: string
+): TaskMetadata {
+  const normalizedTitle = title.trim();
+  if (!normalizedTitle) {
+    throw new Error("任务名称不能为空");
+  }
+  if (normalizedTitle === task.title) {
+    return task;
+  }
+
+  const nextTask = copyTask(task);
+  const previousTitle = nextTask.title;
+  nextTask.title = normalizedTitle;
+  nextTask.auditLog.push(
+    createAuditEntry("update_task_title", nextTask.taskId, `${previousTitle} -> ${normalizedTitle}`)
+  );
+  return nextTask;
+}
+
 function assertActionCanStart(
   action: ActionInstance,
   actions: ActionInstance[]

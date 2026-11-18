@@ -10,6 +10,7 @@ const taskStatusLabels: Record<TaskMetadata["status"], string> = {
 
 const actionLabels: Record<string, string> = {
   create_task: "创建任务",
+  update_task_title: "修改任务名称",
   complete_action: "完成动作",
   undo_action: "撤销动作",
   complete_node: "完成节点",

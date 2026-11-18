@@ -524,6 +524,41 @@ select {
   overflow-wrap: anywhere;
 }
 
+.detail-title-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.detail-title-heading__edit {
+  flex: none;
+  margin-top: 2px;
+}
+
+.detail-title-editor {
+  margin-top: 7px;
+  max-width: 620px;
+}
+
+.detail-title-editor__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-title-editor__input {
+  min-width: 260px;
+  flex: 1;
+  border: 1px solid #cfd9d2;
+  border-radius: 7px;
+  padding: 9px 11px;
+  color: #20342b;
+  background: #fbfcfb;
+  font-size: 18px;
+  font-weight: 700;
+}
+
 .detail-source {
   margin-top: 10px !important;
 }
